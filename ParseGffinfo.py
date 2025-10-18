@@ -5,139 +5,155 @@ class ParseGFFinfo(object):
     Parse unique values in following GFF columns:
     .source      : column 2
     .featuretype : column 3
-    .attr        : attributes in column 9
-                    for attributes, default arguments are
-                    following standard RefSeq GFF3 format
-                    - featuretype = "gene"
-                    - separator = ";"
-                    - assigner = "="   
+    .attr        : column 9 (Attributes)
+
+    Default arguments follow standard RefSeq GFF3:
+        - delimiter: "\\t" (tab)
+        - separator = ";"
+        - assigner = "="   
     """
     
-    def __init__(self, filepath):
+    def __init__(self, filepath, delimiter = "\t", separator = ";", assigner = "="):
+        """
+        Args:
+        - filepath (str): annotation file path
+        - delimiter (str): column delimiter 
+                        (Default = tab ("\\t"))
+        - separator (str): attribute separator for each key-value pair
+                        (Default = ';')
+        - assigner (str): Key-value assigned in attributes 
+                        (Default = '=')
+        """
+
         self.filepath = filepath
-        
+        self.delimiter = delimiter
+        self.separator = separator
+        self.assigner = assigner
+        self.lines = []
+
+        # Read file once and keep valid (non-comment) lines
+        with open(filepath, 'r') as gff:
+            for line in gff:
+                if line.startswith("#"):
+                    continue
+                fields = line.rstrip().split(self.delimiter)
+                if len(fields) >= 2:
+                    self.lines.append(fields)
+        if not self.lines:
+            print("!!! Check the file. No valid lines found.")
+
     
     # parse sources
     def source(self):
-        source = set()
-        with open(self.filepath, 'r') as gff:
-            for l in gff:
-                if l.startswith("#"):
-                    continue
-                fields = l.rstrip().split()
-                if len(fields) >=2:
-                    source.add(fields[1])
-                else:
-                    print("Check the file. There is only one column.")
-        return source
+        """Return unique values of column 2 (source)"""
+        return {f[1] for f in self.lines if len(f)>= 2}
     
     # parse feature types
     def featuretype(self):
-        features = set()
-        with open(self.filepath, 'r') as gff:
-            for l in gff:
-                if l.startswith("#"):
-                    continue
-                fields = l.rstrip().split()
-                if len(fields) >= 3:
-                    features.add(fields[2])
-                else:
-                    print("Line does not have 3 or more columns.")
-        return features
+        """Return unique values of column 3 (feature type)"""
+        return {f[2] for f in self.lines if len(f)>= 3}
 
     # dictionary for feature type(s) for each source
     def featuretype_by_source(self):
+        """Return dictionary mapping each source to unique feature type(s)"""
         ft_by_source = defaultdict(set)
-        with open(self.filepath, 'r') as gff:
-            for l in gff:
-                if l.startswith("#"):
-                    continue
-                fields = l.rstrip().split()
-                if len(fields) >= 3:
-                    ft_by_source[fields[1]].add(fields[2])
-                else:
-                    print("Line does not have 3 or more columns")
+        for f in self.lines:
+            if len(f) >= 3:
+                ft_by_source[f[1]].add(f[2])
         return dict(ft_by_source)
     
-    # parse attributes for assigned featuretype
-    def attr(self, featuretype="gene", separator = ";", assigner = "="):
+    # parse set of unique attributes for a given featuretype
+    def attr(self, featuretype="gene"):
+        """
+        Return set of unique attributes for a given feature type.
+        Default featuretype = 'gene'
+        """
         keys = set() # to save all unique keys
         featuretype = featuretype.lower()
-        with open(self.filepath, 'r') as gff:
-            for l in gff:
-                if l.startswith("#"):
-                    continue                
-                fields = l.rstrip().split()
-                if len(fields) < 9: 
-                    continue # if there's no attribute column, skip
-                if fields[2].lower() != featuretype: 
+        for f in self.lines:
+            if len(f) < 9: 
+                continue # if there's no attribute column, skip
+            if f[2].lower() != featuretype: 
+                continue
+            attributes = f[8] # get the 9th column(attributes in general gff)
+            for attr in attributes.split(self.separator):
+                attr = attr.strip()
+                if not attr: 
                     continue
-                attributes = fields[8] # get the 9th column(attributes in general gff)
-                for attr in attributes.split(separator):
-                    attr = attr.strip()
-                    if not attr: 
-                        continue
-                    if assigner in attr:
-                        key, value = attr.split(assigner, 1)
-                        keys.add(key.strip())
-                    else:
-                        keys.add(attr.strip())
-               
+                if self.assigner in attr:
+                    key, value = attr.split(self.assigner, 1)
+                    keys.add(key.strip())
+                else:
+                    keys.add(attr.strip())           
         return keys
     
     # Parse genome information of region, or if any
     def parse_genome_info(self):
+        """
+        Parse genome information of region, or if any
+        detecting if a line has 'genome=' in attributes.
+        Return summary of 
+        - number of lines that has 'genome'
+        - Feature types(column 3) having genome in attributes
+        - values of genome attribute
+        """
         genome = set()
         genome_ft = set()
         genome_count= 0
-        with open(self.filepath, 'r') as gff:
-            for l in gff:
-                if l.startswith("#"):
-                    continue
-                fields = l.rstrip().split("\t")
-                if len(fields) < 9:
-                    continue
-                attrs = {
-                        kv.split("=")[0].strip().lower(): kv.split("=",1)[1].strip()
-                        for kv in fields[8].split(";") if "=" in kv
+        
+        for f in self.lines:
+            if len(f) < 9:
+                continue
+            attrs = {
+                    kv.split(self.assigner,1)[0].strip().lower(): kv.split(self.assigner,1)[1].strip()
+                    for kv in f[8].split(self.separator) if self.assigner in kv
                     }
-                if "genome" in attrs:
-                    genome.add(attrs["genome"])
-                    genome_ft.add(fields[2])
-                    genome_count +=1
+            if "genome" in attrs:
+                genome.add(attrs["genome"])
+                genome_ft.add(f[2])
+                genome_count +=1
 
-        print(f"# of Lines contatining genome : {genome_count}")
-        print(f"Feature types that have genome in attributes: {genome_ft}")
-        print(f"Keys for genome= attributes: {genome}")
+        print(f"# of lines containing genome : {genome_count}")
+        print(f"Feature types having 'genome' in attributes: {genome_ft}")
+        print(f"Values for genome= attributes: {genome}")
 
 # To clean up gff exluding particular regions having given genome= attributes
 # found using the "ParseGFFinfo.parse_genome_info"
-def cleanup_by_genome_attr(fn, genome_to_exclude=None, ft_4_genome_attr="region", outfile=True):
+def cleanup_by_genome_attr(fn, genome_to_exclude=None, ft_4_genome_attr="region", outfile=True, delimiter = "\t", separator = ";", assigner="="):
     """
     Exclude any region whose genome attribute matches given values
     (e.g. chroloplast)
     AND
-    all features belongs to that region
-    based on column 1 (seqID)
+    all features belongs to that region based on column 1 (seqID)
 
     Args:
-        -fn: gff filepath
+        -fn: annotation(GFF/GTF) filepath
         -genome_to_exclude: string or list 
-                            add value(s) of genome attributes found .parse_genome_info
+                            add value(s) of genome attributes found ParseGFFinfo.parse_genome_info
                             e.g., mitochondrion
         -ft_4_genome_attr: str
-            - regions(default)
-            - add if any other feature types found .parse_genome_info
+            - region(default)
+            - add if any other feature types found ParseGFFinfo.parse_genome_info
         -outfile: Bool or str
             - True(Default): cleaned gff will be saved as original fn + _cleaned.gff
             - False: print genome values excluded and their seq IDs
             - str: cleaned gff will be named as given str
+        -delimiter: str
+                    column delimiter (default = tab)
+        -separator: str
+                    attribute separator for each key-value pair
+                    (Default = ';')
+        -assigner: str
+                    Key-value assigned in attributes 
+                    (Default = '=')
                   
     """
     if genome_to_exclude is None:
         genome_to_exclude = []
-    exclude_set = {e.lower() for e in genome_to_exclude}
+    if isinstance(genome_to_exclude, str):
+        genome_to_exclude = [genome_to_exclude] # make it list if one string to work below
 
+    exclude_set = {e.lower() for e in genome_to_exclude}
     excluded_seqids = set()
 
     # Identify region seqIDs to exclude
@@ -145,21 +161,22 @@ def cleanup_by_genome_attr(fn, genome_to_exclude=None, ft_4_genome_attr="region"
         for l in gff:
             if l.startswith("#"):
                 continue
-            fields = l.rstrip().split("\t")
+            fields = l.rstrip().split(delimiter)
             if len(fields) <9:
                 continue
             ft = fields[2].lower()
             if ft != ft_4_genome_attr:
                 continue
             attrs = {
-                kv.split("=")[0].strip().lower(): kv.split("=",1)[1].strip()
-                for kv in fields[8].split(";") if "=" in kv
+                kv.split(assigner,1)[0].strip().lower(): kv.split(assigner,1)[1].strip()
+                for kv in fields[8].split(separator) if assigner in kv
             }
             if "genome" in attrs and attrs["genome"].lower() in exclude_set:
                 excluded_seqids.add(fields[0])
     
     print(f"Found {len(excluded_seqids)} seq IDs were excluded with genome={exclude_set}")
 
+    # Name output file of cleaned gff
     outfn = None
     if outfile:
         if isinstance(outfile, str) and outfile not in [True,False]:
@@ -175,7 +192,7 @@ def cleanup_by_genome_attr(fn, genome_to_exclude=None, ft_4_genome_attr="region"
                 if out:
                     out.write(l)
                 continue
-            fields = l.rstrip().split("\t")
+            fields = l.rstrip().split(delimiter)
             if len(fields) <9:
                 continue
             seqid = fields[0]
@@ -190,7 +207,6 @@ def cleanup_by_genome_attr(fn, genome_to_exclude=None, ft_4_genome_attr="region"
         print("Output file not written as outfile=False.")
 
     return excluded_seqids
-
 
 
 # Parse different feature types and attributes between files.
