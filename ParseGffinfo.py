@@ -1,3 +1,5 @@
+import random
+import re
 from collections import defaultdict
 
 class ParseGFFinfo(object):
@@ -6,6 +8,7 @@ class ParseGFFinfo(object):
     .source      : column 2
     .featuretype : column 3
     .attr        : column 9 (Attributes)
+    
 
     Default arguments follow standard RefSeq GFF3:
         - delimiter: "\\t" (tab)
@@ -16,19 +19,17 @@ class ParseGFFinfo(object):
     def __init__(self, filepath, delimiter = "\t", separator = ";", assigner = "="):
         """
         Args:
-        - filepath (str): annotation file path
-        - delimiter (str): column delimiter 
-                        (Default = tab ("\\t"))
-        - separator (str): attribute separator for each key-value pair
-                        (Default = ';')
-        - assigner (str): Key-value assigned in attributes 
-                        (Default = '=')
+            - filepath (str): annotation file path
+            - delimiter (str): column delimiter (Default = tab ("\\t"))
+            - separator (str): attribute separator for each key-value pair (Default = ';')
+            - assigner (str): Key-value assigned in attributes (Default = '=')
         """
 
         self.filepath = filepath
         self.delimiter = delimiter
         self.separator = separator
         self.assigner = assigner
+        self.format = "Unknown"
         self.lines = []
 
         # Read file once and keep valid (non-comment) lines
@@ -42,6 +43,153 @@ class ParseGFFinfo(object):
         if not self.lines:
             print("!!! Check the file. No valid lines found.")
 
+    def detect_attr_format(self, max_lines=100, apply=True):
+        """
+        This is to detect likely format that attribute string is using.
+        
+        Args:
+            - max_lines (int) : number of lines to look at for format detection
+            - apply (bool) : if True, update self.separator, self.assigner, self.format
+
+        Returns:
+            - dictionary: detected likely format of attributes
+        """
+        
+        if not self.lines:
+            print("No lines loaded. Please check the file or initialization")
+            return
+        
+        sep_candidates = set()
+        assign_candidates = set()
+        any_quotes = False
+        subformats = set()
+        unknown_sep_count = 0
+        unknown_asgn_count = 0
+        bad_lines =[]
+        sample_lines = []
+
+        lines_to_check = random.sample(self.lines, min(max_lines, len(self.lines)))
+        for f in lines_to_check:
+            if len(f) < 9:
+                continue
+            attrs = f[8].strip()
+            if not attrs:
+                continue
+
+            # Check separator
+            found_sep = False
+            if ";" in attrs:
+                sep_candidates.add(";")
+                found_sep = True
+
+            if "," in attrs:
+                # comma is tricky. 
+                # First, check if comma is found inside quotes (GTFlike)
+                if re.search(r'"[^"]*,[^"]*"', attrs): 
+                    subformats.add("',' inside quoted value")
+                        
+                # Second, check if GFF3 standard format, then likely comma is subseparator
+                elif ";" in sep_candidates:
+                    if re.search(r';[^;]*,[^;]*;', attrs):
+                        subformats.add("',' inside values with separator';'")
+                        
+                # Otherwise, assume comma as a separator, but adding comment in subformat
+                else:
+                    sep_candidates.add(",")
+                    subformats.add("',' as main separator (PLEASE CONFIRM)")
+                found_sep = True
+
+            if "\t" in attrs:
+                sep_candidates.add("\t")
+                found_sep = True
+
+            if not found_sep:
+                unknown_sep_count += 1
+                bad_lines.append(f.strip()) # to present example lines with unknown separator
+                    
+            # Check assigner
+            if "=" in attrs: # Standard GFF3
+                assign_candidates.add("=")
+            elif re.search(r'\w+\s+"[^"]+"', attrs): # standard GTF (e.g., gene_id "Gene1"
+                assign_candidates.add(" ")
+                any_quotes = True
+
+            else: 
+                unknown_asgn_count += 1
+                bad_lines.append(l.strip()) # to present example lines with unknown assigner
+                    
+            # Quotation mark 
+            if '"' in attrs:
+                any_quotes = True
+
+        quoting = "present" if any_quotes else "absent"
+
+        # Report unknowns 
+        if unknown_sep_count > 0:
+            print(f"!!! {unknown_sep_count} lines had no common separator(';', ',', or tab). Check the file.")
+        if unknown_asgn_count > 0:
+            print(f"!!! {unknown_asgn_count} lines had no common assigner('=' or space). Check the file.")
+
+        # Now, update the foundings.
+        if "=" in assign_candidates and " " not in assign_candidates:
+            format_likely = "GFF3-like"
+            assigner_likely = "="
+        elif " " in assign_candidates:
+            if any_quotes:
+                format_likely = "GTF-like"
+                assigner_likely = " "
+        else:
+            format_likely = "Unknown"
+            assigner_likely = ", and/or ".join(sorted(assign_candidates)) if assign_candidates else "?"
+            print(f"Check the file, Could not determine assigner - options: {self.assigner or 'none'}")
+
+        if ";" in sep_candidates:
+            separator_likely = ";"
+        elif "," in sep_candidates:
+            if any("inside" in sf for sf in subformats):
+                separator_likely = ";"
+                print("',' found inside attribute values - using ';' as main separator.")
+            else:
+                separator_likely = ","
+                print("Verify if ',' is the main separator. No semicolon found, treating ',' as main separator.")
+        elif "\t" in sep_candidates:
+            separator_likely = "\t"
+        else:
+            separator_likely = ", and/or ".join(sorted(sep_candidates)) if sep_candidates else "?"
+            print(f"!!!Check the file, Could not determine separator - options: {self.separator or 'none'}")
+        
+        if apply:
+            self.format = format_likely
+            self.assigner = assigner_likely
+            self.separator = separator_likely
+
+
+        # Print summary
+        print("\n====== Attribute Format Detection Summary ======")
+        print(f"Analyzed up to {max_lines} lines.")
+        print(f"Format                : {format_likely}")
+        print(f"Detected separator(s) : {', '.join(sep_candidates) or 'none'}")
+        print(f"Detected assigner(s)  : {', '.join(assign_candidates) or 'none'}")
+        print(f"Is there Quotes?      : {quoting}")
+        print(f"Subformats observed   : {', '.join(subformats) or 'none'}")
+        print(f"Lines with unknown format : {unknown_sep_count + unknown_asgn_count}")
+        if bad_lines:
+            print("Examples of unknown lines : ")
+            for ex in bad_lines:
+                print(f" {ex}")
+        print("==================================================\n")
+        
+        result = {
+        "Format": self.format,
+        "Separators": sep_candidates,
+        "Assigners": assign_candidates,
+        "Quotes": any_quotes,
+        "Subformats": subformats,
+        "Unknown_count": unknown_sep_count + unknown_asgn_count,
+        "Unknown_examples": bad_lines,
+        }
+
+        return result
     
     # parse sources
     def source(self):
@@ -87,127 +235,6 @@ class ParseGFFinfo(object):
                     keys.add(attr.strip())           
         return keys
     
-    # Parse genome information of region, or if any
-    def parse_genome_info(self):
-        """
-        Parse genome information of region, or if any
-        detecting if a line has 'genome=' in attributes.
-        Return summary of 
-        - number of lines that has 'genome'
-        - Feature types(column 3) having genome in attributes
-        - values of genome attribute
-        """
-        genome = set()
-        genome_ft = set()
-        genome_count= 0
-        
-        for f in self.lines:
-            if len(f) < 9:
-                continue
-            attrs = {
-                    kv.split(self.assigner,1)[0].strip().lower(): kv.split(self.assigner,1)[1].strip()
-                    for kv in f[8].split(self.separator) if self.assigner in kv
-                    }
-            if "genome" in attrs:
-                genome.add(attrs["genome"])
-                genome_ft.add(f[2])
-                genome_count +=1
-
-        print(f"# of lines containing genome : {genome_count}")
-        print(f"Feature types having 'genome' in attributes: {genome_ft}")
-        print(f"Values for genome= attributes: {genome}")
-
-# To clean up gff exluding particular regions having given genome= attributes
-# found using the "ParseGFFinfo.parse_genome_info"
-def cleanup_by_genome_attr(fn, genome_to_exclude=None, ft_4_genome_attr="region", outfile=True, delimiter = "\t", separator = ";", assigner="="):
-    """
-    Exclude any region whose genome attribute matches given values
-    (e.g. chroloplast)
-    AND
-    all features belongs to that region based on column 1 (seqID)
-
-    Args:
-        -fn: annotation(GFF/GTF) filepath
-        -genome_to_exclude: string or list 
-                            add value(s) of genome attributes found ParseGFFinfo.parse_genome_info
-                            e.g., mitochondrion
-        -ft_4_genome_attr: str
-            - region(default)
-            - add if any other feature types found ParseGFFinfo.parse_genome_info
-        -outfile: Bool or str
-            - True(Default): cleaned gff will be saved as original fn + _cleaned.gff
-            - False: print genome values excluded and their seq IDs
-            - str: cleaned gff will be named as given str
-        -delimiter: str
-                    column delimiter (default = tab)
-        -separator: str
-                    attribute separator for each key-value pair
-                    (Default = ';')
-        -assigner: str
-                    Key-value assigned in attributes 
-                    (Default = '=')
-                  
-    """
-    if genome_to_exclude is None:
-        genome_to_exclude = []
-    if isinstance(genome_to_exclude, str):
-        genome_to_exclude = [genome_to_exclude] # make it list if one string to work below
-
-    exclude_set = {e.lower() for e in genome_to_exclude}
-    excluded_seqids = set()
-
-    # Identify region seqIDs to exclude
-    with open(fn,'r') as gff:
-        for l in gff:
-            if l.startswith("#"):
-                continue
-            fields = l.rstrip().split(delimiter)
-            if len(fields) <9:
-                continue
-            ft = fields[2].lower()
-            if ft != ft_4_genome_attr:
-                continue
-            attrs = {
-                kv.split(assigner,1)[0].strip().lower(): kv.split(assigner,1)[1].strip()
-                for kv in fields[8].split(separator) if assigner in kv
-            }
-            if "genome" in attrs and attrs["genome"].lower() in exclude_set:
-                excluded_seqids.add(fields[0])
-    
-    print(f"Found {len(excluded_seqids)} seq IDs were excluded with genome={exclude_set}")
-
-    # Name output file of cleaned gff
-    outfn = None
-    if outfile:
-        if isinstance(outfile, str) and outfile not in [True,False]:
-            outfn = outfile
-        else:
-            outfn = fn + "_cleaned.gff"
-    
-    out = open(outfn, 'w') if outfn else None
-
-    with open(fn,'r') as gff:
-        for l in gff:
-            if l.startswith("#"):
-                if out:
-                    out.write(l)
-                continue
-            fields = l.rstrip().split(delimiter)
-            if len(fields) <9:
-                continue
-            seqid = fields[0]
-            if seqid in excluded_seqids:
-                continue
-            if out:                   
-                out.write(l)
-    if out:
-        out.close()
-        print(f">>>Cleaned file written: {outfn}")
-    else:
-        print("Output file not written as outfile=False.")
-
-    return excluded_seqids
-
 
 # Parse different feature types and attributes between files.
 
