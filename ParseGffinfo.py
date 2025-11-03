@@ -105,7 +105,7 @@ class ParseGFFinfo(object):
 
             if not found_sep:
                 unknown_sep_count += 1
-                bad_lines.append(f.strip()) # to present example lines with unknown separator
+                bad_lines.append(self.delimiter.join(f).strip()) # to present example lines with unknown separator
                     
             # Check assigner
             if "=" in attrs: # Standard GFF3
@@ -116,7 +116,7 @@ class ParseGFFinfo(object):
 
             else: 
                 unknown_asgn_count += 1
-                bad_lines.append(l.strip()) # to present example lines with unknown assigner
+                bad_lines.append(self.delimiter.join(f).strip()) # to present example lines with unknown assigner
                     
             # Quotation mark 
             if '"' in attrs:
