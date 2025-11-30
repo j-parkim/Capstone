@@ -43,6 +43,7 @@ class ParseGFFinfo(object):
         if not self.lines:
             print("!!! Check the file. No valid lines found.")
 
+# ------------------------------------------------------------------------------------------------------------
     def detect_attr_format(self, max_lines=100, apply=True):
         """
         This is to detect likely format that attribute string is using.
@@ -191,16 +192,19 @@ class ParseGFFinfo(object):
 
         return result
     
+ # ------------------------------------------------------------------------------------------------------------   
     # parse sources
     def source(self):
         """Return unique values of column 2 (source)"""
         return {f[1] for f in self.lines if len(f)>= 2}
     
+# ------------------------------------------------------------------------------------------------------------    
     # parse feature types
     def featuretype(self):
         """Return unique values of column 3 (feature type)"""
         return {f[2] for f in self.lines if len(f)>= 3}
-
+    
+# ------------------------------------------------------------------------------------------------------------
     # dictionary for feature type(s) for each source
     def featuretype_by_source(self):
         """Return dictionary mapping each source to unique feature type(s)"""
@@ -208,8 +212,17 @@ class ParseGFFinfo(object):
         for f in self.lines:
             if len(f) >= 3:
                 ft_by_source[f[1]].add(f[2])
+
+        print(f"\n===Feature Types by source===")
+        for source, feature in sorted(ft_by_source.items()):
+            print(f"\nSource: {source}")
+            for ft in sorted(feature):
+                print(f"   - {ft}")
+        print("=================================\n")
+
         return dict(ft_by_source)
-    
+
+# ------------------------------------------------------------------------------------------------------------    
     # parse set of unique attributes for a given featuretype
     def attr(self, featuretype="gene"):
         """
@@ -234,8 +247,138 @@ class ParseGFFinfo(object):
                 else:
                     keys.add(attr.strip())           
         return keys
-    
 
+# ------------------------------------------------------------------------------------------------------------
+    def attr_by_source_featuretype(self):
+        """
+        Find different attributes by source per featuretype.
+        Return:
+        {source : {featuretype : {attribute keys}}}
+
+        Example:
+        {
+            "RefSeq": {
+                "gene": {"ID", "Note"},
+                "CDS" : {"ID", "Parent", "protein_id"}
+                }
+            "Gnomon": {
+                "gene": {"ID", "Name", "Dbxref"},
+                "mRNA": {"ID", "Parent", "product"}
+                }
+        }
+        """
+        results = defaultdict(dict)
+
+        ft_by_source = self.featuretype_by_source()
+
+        for src, features in ft_by_source.items():
+                for ft in features:
+                    attrs = self.attr(featuretype=ft)
+                    results[src][ft] = sorted(attrs) 
+
+        return dict(results)
+
+# ------------------------------------------------------------------------------------------------------------    
+    def show_attr_by_source_featuretype(self, outfile=False):
+        """
+        Nicely print attributes grouped by source and featuretype.
+        """
+        attr_map = self.attr_by_source_featuretype()
+        sources = list(attr_map.keys())
+
+        if outfile:
+            if isinstance(outfile, str):
+                outfn = outfile
+            else:
+                outfn = f"{self.filepath}_attr_diff_by_source_ft.txt"
+            out = open(outfn, "w")
+            def write(*args, **kwargs):
+                print(*args, **kwargs, file=out)
+        
+        else:
+            def write(*args, **kwargs):
+                print(*args, **kwargs)
+
+        all_ft = sorted({ft for src in attr_map for ft in attr_map[src]})
+
+        write("=== Attribute Summary by Source and Featuretype ===")
+
+        for ft in all_ft:
+            # Get all attribute key sets for this feature across sources
+            ft_attrs = {src: set(attr_map[src].get(ft, [])) for src in sources}
+
+            # Find common attributes
+            valid_sets = [v for v in ft_attrs.values() if v]
+            if not valid_sets:
+                continue
+
+            common = set.intersection(*valid_sets) if len(valid_sets) >1 else set()
+            all_attrs = set.union(*valid_sets)
+
+            write(f"Feature type: {ft}")
+            write(f"Common attributes across all sources: {', '.join(sorted(common)) or 'None'}")
+
+            # Find source-specific attributes
+            diff_found = False
+            for src, attrs in ft_attrs.items():
+                unique = attrs - common
+                if unique:
+                    diff_found = True
+                    write(f"Only {src} has: {', '.join(sorted(unique))}")
+            if not diff_found:
+                write("No source-specific differences.")
+            write("")
+
+        if outfile:
+            out.close()
+            print(f">>>>> Attribute comparison by source written to {outfn}")
+    
+# ------------------------------------------------------------------------------------------------------------
+    def genome(self):
+        """
+        Parse genome information of region, or if any
+        detecting if a line has 'genome=' in attributes.
+
+        Returns:
+            {
+                "count" : <number of lines containing 'genome'>,
+                "featuretypes": {feature types that had 'genome='},
+                "values":{all genome attribute values}
+            }
+        """
+        genome = set()
+        genome_ft = set()
+        genome_count = 0
+
+        for fields in self.lines:
+            if len(fields) < 9:
+                continue
+
+            attrs = {
+                kv.split(self.assigner,1)[0].strip().lower():
+                kv.split(self.assigner,1)[1].strip()
+                for kv in fields[8].split(self.separator) 
+                if self.assigner in kv
+            }
+
+            if "genome" in attrs:
+                genome.add(attrs["genome"])
+                genome_ft.add(fields[2])
+                genome_count += 1
+
+        print("\n=== Genome Attribute Summary ===")
+        print(f"# of lines containing genome : {genome_count}")
+        print(f"Feature types having 'genome' in attributes: {sorted(genome_ft)}")
+        print(f"Values found for genome= : {sorted(genome)}")
+        print("===================================")
+
+        return {
+             "count": genome_count,
+             "feature_types": genome_ft,
+             "values": genome
+        }
+    
+# ------------------------------------------------------------------------------------------------------------
 # Parse different feature types and attributes between files.
 
 def find_diff_attributes(*inputs, outfile = False):
