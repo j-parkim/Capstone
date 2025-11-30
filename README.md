@@ -15,15 +15,15 @@ This is to provide a modular, lightweight, reproducible pipeline for:
 5. **Selecting ONE representative isoform per gene**
 
 The final output is:
-<pre>```representative_isoforms.faa
-isoform_summary.tsv```</pre>
+<pre>representative_isoforms.faa
+isoform_summary.tsv</pre>
 
 ## **Workflow**
-Step 0: Inspect GFF
-    |
-    |-- ParseGFFinfo.py
-    |
-Step 0.5: (Optional) Reformat dialects
+Step 0: Inspect GFF<br>
+    |<br>
+    |-- ParseGFFinfo.py<br>
+    |<br>
+Step 0.5: (Optional) Reformat dialects<br>
     |
     |-- Reformat2GFF.py
     |
