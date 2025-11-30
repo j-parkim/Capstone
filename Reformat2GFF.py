@@ -11,7 +11,8 @@ class ReformatGFF(object):
     Performs:
         - dialect normalization(separator/assigner)
         - consolidation of biotype keys
-        - controlled ID/Parent prefixing based on feature type
+        - Check if ID/Parent attributes are there
+        - WARN if essential structural attributes missing
         - preservation of original information (not necessary modification made)
 
     """
@@ -39,14 +40,11 @@ class ReformatGFF(object):
             - delimiter (str): column delimiter (default = tab)
         """
         self.filepath = filepath
-        self.parser = ParseGffinfo(filepath)
+        self.parser = ParseGFFinfo(filepath)
         self.delimiter = delimiter
         self.separator = None # placeholder. TBD
         self.assigner = None # placeholder. TBD
         self.format = None # placeholder. TBD
-
-        self.exon_counters = defaultdict(int) # Tracks the last exon number for each transcript ID
-        self.dynamic_exon_numbering = True # If already numbered, skip dynamic numbering
 
     # -------------------------------------------------------------------------------
     # Open File
@@ -149,43 +147,20 @@ class ReformatGFF(object):
         return None
 
     # -------------------------------------------------------------------------------
-    def _normalize_attr_names(self, attrs, featuretype):
+    def _normalize_attr_names(self, attrs, featuretype, summary, l_idx):
         """
-        - Applies correct ID prefix based on feature type
-        - Applies corret Parent prefix based on hierarchy
-        - Preserve identifiers
-        - Preserve other attributes as-is
+        - Normalize some keys (such as biotype)
+        - Detect missing ID and Parent where expected
+        - Add ID ONLY when an alternative valid ID exits defined by _select_best_id_for_ft
         """
         normalized = {}
         ft = featuretype.lower()
-        is_rna = (ft.endswith("rna")) or (ft.endswith("transcript"))
+        is_rna = (ft.endswith("rna") or ft.endswith("transcript"))
 
-        #----Define prefix based on featuretype---
-        id_prefix = (
-            "gene-" if (ft == "gene") else
-            "rna-" if is_rna else
-            "exon-" if (ft == "exon") else
-            "cds-" if (ft == "cds") else
-            f"{ft}-" # if not in map, just use feature type.lower
-        )
-
-        # Prefixes to check for to prevent double-prefixing(rna-rna-XM.dflskdjf)
-        known_prefixes = {"gene-", "rna-", "exon-", "cds-","transcript-"}
-
-        #-----Mapping, Parent extraction -----
-        parent_val = None
-
-        # Keys that will be used to select the best ID.
-        id_to_keep = {"id", "gene_id", "transcript_id", "exon_id", "protein_id", "locus_tag"}
-
+        # ------ Normalize mapped keys (biotype, Note, etc) ------
         for k, v in attrs.items():
             k_low = k.lower()
             v_clean = v.strip('"') # Remove quotations from values
-            
-            # 0. Extract Parent
-            if k_low == "parent":
-                parent_val = v_clean
-                continue
 
             # 1. Check if the key is in the normalization map
             mapped = self.gff3_attr_mapping.get(k_low)
@@ -199,64 +174,41 @@ class ReformatGFF(object):
                             normalized[mapped] = v_clean
                 else:
                     normalized[mapped] = v_clean
-            
-            if k_low in id_to_keep:
-                # preserve as is.
-                if k not in normalized:
-                    normalized[k] = v_clean
-            
-            # Preserve other info as is
-            elif mapped is None and k_low not in id_to_keep:
-                if k not in normalized:
-                    normalized[k] = v_clean
+            else:
+                normalized[k] = v_clean
         
-        # 1. Normalize ID
-        id_val = self._select_best_id_for_ft(featuretype, attrs)
+        # ------ ID handling (WARNING AND COPYING) ------
+        has_id = any(k.lower() == "id" for k in normalized)
 
-        if id_val:
-            already_prefixed = any(id_val.startswith(p) for p in known_prefixes)
+        if not has_id:
+                candidate = self._select_best_id_for_ft(featuretype, attrs)
+                if candidate:
+                    print(f"[----INFO---- line {l_idx}] adding ID={candidate} for {featuretype} as missing")
+                    normalized["ID"]=candidate
+                    summary["ID_added_cases"] += 1
+                else:
+                    print(f"[WARNING!!! line {l_idx}] Missing ID and no alternative ID candidate for {featuretype}. Check the file.")
+                    summary["ID_MISSING_cases"] += 1
 
-            # ----EXON numbering check-----
-            if (ft == "exon") and self.dynamic_exon_numbering:
+        # ----- Checking Parent attribute where expected (WARNING ONLY) ------
+        has_parent = any(k.lower() == "parent" for k in attrs)
 
-                if not already_prefixed:
-                    #Check if the selected ID already has a suffix number
-                    has_number = re.search(r'[.-]\d+$', id_val)
-
-                    if not has_number:
-                        # If missing, use parent Id to track the count
-                        parent_id_base = attrs.get("transcript_id")
-
-                        if parent_id_base:
-                            # increment the counter for this specific transcript
-                            parent_id_base = parent_id_base.strip('"')
-                            self.exon_counters[parent_id_base] += 1
-                            new_suffix = f"-{self.exon_counters[parent_id_base]}"
-
-                            # Use the Parent/Transcript ID as the base for the new exon ID
-                            id_val = parent_id_base + new_suffix
-
-                            # We just reconstructed the ID without a prefix, so we'll add it
-                            already_prefixed = False
-
-            normalized["ID"] = id_val if already_prefixed else id_prefix + id_val
-
-        # 2. Normalize Parent
-        if parent_val:
-            parent_prefix = "rna-" # as parent attributes exist for transcripts and cds
-            if is_rna:
-                parent_prefix = "gene-"
-            
-            already_prefixed = any(parent_val.startswith(p) for p in known_prefixes)
-
-            normalized["Parent"] = parent_val if already_prefixed else parent_prefix + parent_val
+        if is_rna and not has_parent:
+            summary["RNA/transcript_missing_Parentkey"] += 1
+            print(f"[WARNING!!! LINE {l_idx}] Missing Parent key \n {summary["CURRENT_LINE_RAW"]}")
+        elif ft == "exon" and not has_parent:
+            summary["EXON_missing_Parentkey"] += 1
+            print(f"[WARNING!!! LINE {l_idx}] Missing Parent key \n {summary["CURRENT_LINE_RAW"]}")            
+        elif ft == "cds" and not has_parent:
+            summary["CDS_missing_Parentkey"] += 1
+            print(f"[WARNING!!! LINE {l_idx}] Missing Parent key \n {summary["CURRENT_LINE_RAW"]}")
 
         return normalized
     # -------------------------------------------------------------------------------
     def reformat_dialects(self, tobe="GFF3", outfile = True):
         """
-        Convert attributes to standardized GFF3 or GTF-like syntax.
-        Uses detected separator/assigner if available.
+        - Convert attributes to standardized GFF3 or GTF-like syntax.
+        - Uses detected separator/assigner if available.
 
         Args:
             tobe (str): choose the final file to be either "GFF3" or "GTF" format. (default: GFF3)
@@ -275,6 +227,15 @@ class ReformatGFF(object):
         sep = self.separator or ";"
         assigner = self.assigner or "="
 
+        summary = {
+            "Total_lines": 0,
+            "ID_added_cases": 0,
+            "ID_MISSING_cases": 0,
+            "RNA/transcript_missing_Parentkey": 0,
+            "EXON_missing_Parentkey": 0,
+            "CDS_missing_Parentkey": 0
+        }
+
         out = (f"{self.filepath}_standardized.{tobe.lower()}" 
                if outfile is True 
                else outfile if isinstance(outfile, str)
@@ -283,7 +244,8 @@ class ReformatGFF(object):
         outfile_ = open(out, "w") if out else None
 
         with self._open_file() as infile:
-            for l in infile:
+            for l_idx, l in enumerate(infile, start=1):
+
                 if l.startswith("#"):
                     if outfile_:
                         outfile_.write(l)
@@ -291,13 +253,16 @@ class ReformatGFF(object):
                         print(l.strip())
                     continue
 
+                summary["Total_lines"] += 1
+                summary["CURRENT_LINE_RAW"] = l.rstrip("\n")
+
                 fields = l.rstrip().split(self.delimiter)
                 if len(fields) < 9:
                     continue
                 
                 featuretype = fields[2]
 
-                # Parse attribues using detected marks 
+                # ------ Parse attributes using detected symbols ------
                 # If line has no assigner returns, just print
                 attrs = {}
                 for kv in fields[8].split(sep):
@@ -310,13 +275,13 @@ class ReformatGFF(object):
                     else:
                         attrs[kv.strip()] = ""
 
-                # Apply standardization and prefixing
+                # ------ Normalize the keys ------
                 if tobe.lower() == "gff3":
-                    normed_attrs = self._normalize_attr_names(attrs,featuretype)
+                    normed_attrs = self._normalize_attr_names(attrs, featuretype, summary, l_idx)
                 else: # GTF
                     normed_attrs = {k: v.strip('"') for k,v in attrs.items()}
 
-                # Convert to target syntax
+                # ------ Convert to target syntax ------
                 if tobe.lower() == "gtf":
                     new_attrs = "; ".join(f'{k} "{v}"' for k, v in normed_attrs.items()) + ";"
                 else: # gff3
@@ -332,3 +297,13 @@ class ReformatGFF(object):
             print(f"Reformatted file written to: {out}")
         else:
             print(">>> Reformatting completed. See below.")
+
+        # ------ Summary ------
+        print("\n========Normalization Summary========")
+        for k,v in summary.items():
+            if k =="CURRENT_LINE_RAW":
+                continue
+            print(f"{k:35} : {v}")
+        print("========================================")
+
+        return summary
