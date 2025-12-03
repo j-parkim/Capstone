@@ -40,7 +40,7 @@ class ReformatGFF(object):
             - delimiter (str): column delimiter (default = tab)
         """
         self.filepath = filepath
-        self.parser = ParseGFFinfo(filepath)
+        self.parser = ParseGffinfo.ParseGFFinfo(filepath)
         self.delimiter = delimiter
         self.separator = None # placeholder. TBD
         self.assigner = None # placeholder. TBD
