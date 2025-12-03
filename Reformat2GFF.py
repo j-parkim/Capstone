@@ -233,7 +233,8 @@ class ReformatGFF(object):
             "ID_MISSING_cases": 0,
             "RNA/transcript_missing_Parentkey": 0,
             "EXON_missing_Parentkey": 0,
-            "CDS_missing_Parentkey": 0
+            "CDS_missing_Parentkey": 0,
+            "strand_fixed_?_to_.": 0
         }
 
         out = (f"{self.filepath}_standardized.{tobe.lower()}" 
@@ -261,6 +262,12 @@ class ReformatGFF(object):
                     continue
                 
                 featuretype = fields[2]
+
+                # ------ Fix strand marked as '?'  -> '.' -------
+                # As it can throw an error in downstream processes
+                if len(fields) > 6 and fields[6] == "?":
+                    fields[6] = "."
+                    summary["strand_fixed_?_to_."] +=1
 
                 # ------ Parse attributes using detected symbols ------
                 # If line has no assigner returns, just print
