@@ -84,6 +84,13 @@ def main():
     inspector.genome()
     inspector.show_attr_by_source_featuretype()
 
+    # Add user prompt to enter any source/genome to remove
+    # learned from the summary above
+    remove_g = input("\nDo you want to remove any genome? \n (Enter comma-separated or 'none')").strip()
+    remove_s = input("\nDo you want to remove data from any source? \n(Enter comma-separated or 'none)").strip()
+
+    remove_genome_attr = [] if remove_g.lower() =="none" else [x.strip() for x in remove_g.split(",") if x.strip()]
+    remove_sources = [] if remove_s.lower() == "none" else [x.strip() for x in remove_s.split(",") if x.strip()]
     # ------------------------------------------------------
     # 0.5) (Optional) Reformat dialects using *ReformatGFF.py*
     # ------------------------------------------------------
@@ -91,7 +98,9 @@ def main():
 
     if args.reformat:
         print("\n=== STEP 0.5: Reformatting GFF ===")
-        rf = Reformat2GFF.ReformatGFF(args.gff)
+        rf = Reformat2GFF.ReformatGFF(args.gff,
+                                      remove_genome_attr=remove_genome_attr,
+                                      remove_sources=remove_sources)
         rf.detect_format()
         out_reformed = os.path.join(outdir, "reformatted.gff3")
         rf.reformat_dialects("GFF3", outfile=out_reformed)
@@ -131,7 +140,7 @@ def main():
     
     else:
         print("\n=== STEP 2: 'gffread' generating protein FASTA ===")
-        cds_out, protein_out = Parse_ONE_Isoform.run_gffread(
+        cds_out, protein_out = Parse_ONE_Isoform. -read(
             cleaned_gff,
             args.genome,
             out_prefix=os.path.join(outdir,"gffread_output")
