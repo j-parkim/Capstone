@@ -266,14 +266,6 @@ class ReformatGFF(object):
                 
                 featuretype = fields[2]
 
-                # ------ Skip if source and/or Genome match ------
-                source = fields[1]
-                if source in self.remove_sources:
-                    continue
-
-                if "genome" in attrs and attrs["genome"] in self.remove_genome_attr:
-                    continue
-
                 # ------ Fix strand marked as '?'  -> '.' -------
                 # As it can throw an error in downstream processes
                 if len(fields) > 6 and fields[6] == "?":
@@ -292,6 +284,14 @@ class ReformatGFF(object):
                         attrs[k.strip()] = v.strip()
                     else:
                         attrs[kv.strip()] = ""
+
+                # ------ Skip if source and/or Genome match ------
+                source = fields[1]
+                if source in self.remove_sources:
+                    continue
+
+                if "genome" in attrs and attrs["genome"] in self.remove_genome_attr:
+                    continue
 
                 # ------ Normalize the keys ------
                 if tobe.lower() == "gff3":
