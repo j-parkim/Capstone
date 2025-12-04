@@ -140,7 +140,7 @@ def main():
     
     else:
         print("\n=== STEP 2: 'gffread' generating protein FASTA ===")
-        cds_out, protein_out = Parse_ONE_Isoform. -read(
+        cds_out, protein_out = Parse_ONE_Isoform.run_gffread(
             cleaned_gff,
             args.genome,
             out_prefix=os.path.join(outdir,"gffread_output")
