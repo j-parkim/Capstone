@@ -27,6 +27,7 @@ isoform_summary.tsv</pre>
 This is the complete workflos used for my **NYU Capstone Project.**
 
 ## **Pipeline at a Glance**
+<pre>
  ┌──────────────────────────────┐
  │          Input GFF           │
  └───────────────┬──────────────┘
@@ -74,7 +75,7 @@ This is the complete workflos used for my **NYU Capstone Project.**
       |    representative_isoforms.faa    │
       │    isoform_written_summary.tsv    │
       └───────────────────────────────────┘
-
+</pre>
 
 ## **Dependencies**
 #### Required
@@ -103,10 +104,13 @@ python gff2faa.py \
 
 ## **Available Options**
 **Required**:
+<pre>
     -gff                 Input GFF3 annotation file  
     -genome              Genome FASTA (for gffread)
+</pre>
 
 **Optional**:
+<pre>
     --reformat           Standardize attributes (GFF3 format)
     --remove-genome      Remove genome regions 
                         # option: enter in the commandline or user can input in prompt after summary is printed
@@ -121,7 +125,10 @@ python gff2faa.py \
     --skip-isoform       Skip isoform selection (keep all proteins)
 
     --outdir             Output directory (default=results)
+</pre>
 
 ## Future Directions
-
+    - Update for GTF format as well
+    - Few more tests on Ensembl/GenCode, GenBank files
+    - Make it neat
 #### 
