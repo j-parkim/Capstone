@@ -48,9 +48,9 @@ def main():
     
     # ------ Cleanup -------
     parser.add_argument("--remove-genome", nargs="*", default=None,
-                        help="Genome attribute(s) to remove (e.g., 'chloroplast', 'mitochondrion')")
+                        help="Genome attribute(s) to remove (e.g., chloroplast,mitochondrion)")
     parser.add_argument("--remove-source",nargs="*",default=None,
-                        help="Sources (column2) to remove (e.g., cmsearch)")
+                        help="Sources (column2) to remove (e.g., cmsearch,tRNAscan-SE)")
     parser.add_argument("--skip-cleanup", action="store_true",
                         help="Skip cleanup steps and use the original GFF")
     
@@ -77,20 +77,32 @@ def main():
     # ------------------------------------------------------
     # 0) Inspect GFF with *ParseGFFinfo.py*
     # ------------------------------------------------------
-    print("\n=== STEP 0: Inspecting GFF ===")
+   
     inspector = ParseGffinfo.ParseGFFinfo(args.gff)
+    print("\n=== STEP 0: Inspecting GFF ===")
     inspector.source()
     inspector.featuretype()
-    inspector.genome()
-    inspector.show_attr_by_source_featuretype()
 
     # Add user prompt to enter any source/genome to remove
-    # learned from the summary above
-    remove_g = input("\nDo you want to remove any genome? \n (Enter comma-separated or 'none')").strip()
-    remove_s = input("\nDo you want to remove data from any source? \n(Enter comma-separated or 'none)").strip()
-
-    remove_genome_attr = [] if remove_g.lower() =="none" else [x.strip() for x in remove_g.split(",") if x.strip()]
-    remove_sources = [] if remove_s.lower() == "none" else [x.strip() for x in remove_s.split(",") if x.strip()]
+    inspector.genome()
+    if args.remove_genome:
+        genomes_to_remove = args.remove_genome    
+    else:
+        user_remove_g = input("\nDo you want to remove any genome? \n (e.g., comma-separated or none)").strip()
+        if user_remove_g.lower() == "none" or user_remove_g == "":
+            genomes_to_remove=[]
+        else:
+            genomes_to_remove = [x.strip() for x in user_remove_g.split(",")]
+    
+    inspector.show_attr_by_source_featuretype()
+    if args.remove_source:
+        sources_to_remove = args.remove_source
+    else:
+        user_remove_s = input("\nDo you want to remove data from any source? \n(Enter comma-separated or none)").strip()
+        if user_remove_s.lower() == "none" or user_remove_s == "":
+            sources_to_remove = []
+        else:
+            sources_to_remove = [x.strip() for x in user_remove_s.split(",")]
     # ------------------------------------------------------
     # 0.5) (Optional) Reformat dialects using *ReformatGFF.py*
     # ------------------------------------------------------
@@ -98,9 +110,7 @@ def main():
 
     if args.reformat:
         print("\n=== STEP 0.5: Reformatting GFF ===")
-        rf = Reformat2GFF.ReformatGFF(args.gff,
-                                      remove_genome_attr=remove_genome_attr,
-                                      remove_sources=remove_sources)
+        rf = Reformat2GFF.ReformatGFF(args.gff)
         rf.detect_format()
         out_reformed = os.path.join(outdir, "reformatted.gff3")
         rf.reformat_dialects("GFF3", outfile=out_reformed)
@@ -111,15 +121,18 @@ def main():
     # 1) (Optional) Clean up GFF 
     #    (remove genome regions, sources, only keep protein_coding biotypes)
     # ------------------------------------------------------
+    # Apply genome/source removal either from the command line or prompts in Step0
     if args.skip_cleanup:
         print("\n=== STEP 1: Not cleaning up (skipping) ===")
         cleaned_gff = gff_for_next
     else:
         print("\n=== STEP 1: Cleaning up in progress ===")
+        print(f"\nUsing genome_to_remove = {genomes_to_remove}")
+        print(f"Using source_to_remove = {sources_to_remove}\n")
         cleaned_gff_temp = Parse_whatUwant_gff.full_cleanup(
             gff_for_next,
-            genome_to_remove=args.remove_genome,
-            source_to_remove=args.remove_source,
+            genome_to_remove=genomes_to_remove,
+            source_to_remove=sources_to_remove,
             protein_coding_only=True
         )
         # move output to outdir

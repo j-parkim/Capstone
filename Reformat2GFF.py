@@ -33,8 +33,7 @@ class ReformatGFF(object):
     }
 
     # -------------------------------------------------------------------------------
-    def __init__(self, filepath, delimiter="\t", 
-                 remove_genome_attr=None, remove_sources=None):
+    def __init__(self, filepath, delimiter="\t"):
         """
         Args:
             - filepath (str): annotation file path
@@ -46,8 +45,6 @@ class ReformatGFF(object):
         self.separator = None # placeholder. TBD
         self.assigner = None # placeholder. TBD
         self.format = None # placeholder. TBD
-        self.remove_genome_attr = set(remove_genome_attr or [])
-        self.remove_sources = set(remove_sources or [])
 
     # -------------------------------------------------------------------------------
     # Open File
@@ -284,14 +281,6 @@ class ReformatGFF(object):
                         attrs[k.strip()] = v.strip()
                     else:
                         attrs[kv.strip()] = ""
-
-                # ------ Skip if source and/or Genome match ------
-                source = fields[1]
-                if source in self.remove_sources:
-                    continue
-
-                if "genome" in attrs and attrs["genome"] in self.remove_genome_attr:
-                    continue
 
                 # ------ Normalize the keys ------
                 if tobe.lower() == "gff3":
