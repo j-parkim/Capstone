@@ -19,6 +19,8 @@ import sys
 import shutil
 import subprocess
 import random
+import gzip
+import tempfile
 from collections import defaultdict
 
 # ----------------------------------------------------------------------------
@@ -35,6 +37,24 @@ def check_gffread():
     else:
         print(f"gffread found at: {exe}")
 
+# ----------------------------------------------------------------------------
+# _Helper function to unzip genome FASTA
+def unzip_fasta(genome_fasta):
+    """
+    If genome FASTA provided is .gz, automatically decompress it
+    gffread does not accept .gz
+    """
+    if genome_fasta.endswith(".gz"):
+        print("[INFO] Decompressing gzipped FASTA......")
+
+        tmpdir = tempfile.mkdtemp(prefix="genome_unzip_")
+        out = os.path.join(tmpdir, os.path.basename(genome_fasta).replace(".gz",""))
+
+        with gzip.open(genome_fasta,"rt") as infile, open(out,"w") as outfile:
+            shutil.copyfileobj(infile,outfile)
+        print(f"[INFO] Genome FASTA uncompressed to: {out}")
+        return out
+    return genome_fasta
 # ----------------------------------------------------------------------------
 # 2. Generate CDS and protein FASTA via gffread
 
@@ -63,7 +83,9 @@ def run_gffread(gff_file, genome_fasta,
     protein_out = f"{out_prefix}.protein.fasta" if out_protein else None
 
     # Build gffread command
-    cmd = ["gffread", gff_file, "-g", genome_fasta, "-F"]
+
+    genome = unzip_fasta(genome_fasta)
+    cmd = ["gffread", gff_file, "-g", genome, "-F"]
 
     if out_cds:
         cmd += ["-x", cds_out]
