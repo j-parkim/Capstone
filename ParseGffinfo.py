@@ -1,6 +1,7 @@
 import random
 import re
 from collections import defaultdict
+import gzip
 
 class ParseGFFinfo(object):
     """
@@ -32,17 +33,13 @@ class ParseGFFinfo(object):
         self.format = "Unknown"
         self.lines = []
 
-        # Read file once and keep valid (non-comment) lines
-        with open(filepath, 'r') as gff:
-            for line in gff:
-                if line.startswith("#"):
-                    continue
-                fields = line.rstrip().split(self.delimiter)
-                if len(fields) >= 2:
-                    self.lines.append(fields)
-        if not self.lines:
-            print("!!! Check the file. No valid lines found.")
-
+    # -------------------------------------------------------------------------------
+    # Open File
+    def _open_file(self):
+        if self.filepath.endswith(".gz"):
+            return gzip.open(self.filepath, "rt")
+        return open(self.filepath, "r")
+    
 # ------------------------------------------------------------------------------------------------------------
     def detect_attr_format(self, max_lines=100, apply=True):
         """
@@ -279,7 +276,7 @@ class ParseGFFinfo(object):
         return dict(results)
 
 # ------------------------------------------------------------------------------------------------------------    
-    def show_attr_by_source_featuretype(self, outfile=False):
+    def show_attr_by_source_featuretype(self, outfile=True):
         """
         Nicely print attributes grouped by source and featuretype.
         """
