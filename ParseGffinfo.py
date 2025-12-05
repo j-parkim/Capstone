@@ -32,6 +32,7 @@ class ParseGFFinfo(object):
         self.assigner = assigner
         self.format = "Unknown"
         self.lines = []
+        self.load_lines()
 
     # -------------------------------------------------------------------------------
     # Open File
@@ -40,6 +41,13 @@ class ParseGFFinfo(object):
             return gzip.open(self.filepath, "rt")
         return open(self.filepath, "r")
     
+    def load_lines(self):
+        self.lines = []
+        with self._open_file() as gff:
+            for l in gff:
+                if not l.startswith('#'):
+                    self.lines.append(l.rstrip("\n").split(self.delimiter))
+
 # ------------------------------------------------------------------------------------------------------------
     def detect_attr_format(self, max_lines=100, apply=True):
         """
