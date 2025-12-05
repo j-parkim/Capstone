@@ -81,6 +81,7 @@ This is the complete workflos used for my **NYU Capstone Project.**
 #### Required
 - Python v3.13 or above
 - `gffread`
+    `conda install bioconda::gffread`
 - Python built-in packages:
     - argparse, os, subprecess, shutil, random, re, collections
 
@@ -89,6 +90,7 @@ This is the complete workflos used for my **NYU Capstone Project.**
 git clone https://github.com/j-parkim/Capstone.git
 cd Capstone
 </pre>
+If git is not installed, download ZIP in the green `<>Code` button above.
 
 Then, run directly<br>
 ```
@@ -128,7 +130,7 @@ python gff2faa.py \
 </pre>
 
 ## Future Directions
-    - Update for GTF format as well
-    - Few more tests on Ensembl/GenCode, GenBank files
-    - Make it neat
+- Update for GTF format as well
+- Few more tests on Ensembl/GenCode, GenBank files
+- Make it neat
 #### 
