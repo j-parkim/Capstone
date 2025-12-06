@@ -5,7 +5,7 @@ Pipeline:
     1) (Optional) *Parse_whatUwant_gff.py*: Clean up GFF (remove genome regions, sources, only keep protein_coding biotypes)
     2) *Parse_ONE_Isofom.py*: run gffread to produce CDS + protein FASTA 
     3) *Parse_ONE_Isofom.py*: Select one representative isoform per gene
-                            (longest, random, first)
+                            (longest, random, first, closest length)
 
 Author: Jeonghwa (J) Parkim
 """
@@ -62,8 +62,10 @@ def main():
     
     # ------ Isoform selection -------
     parser.add_argument("--criteria", default="longest",
-                        choices=["longest","first","random"],
+                        choices=["longest","first","random","length"],
                         help="Criteria for representative isoform selection")
+    parser.add_argument("--target-seq-length", type=int, default=None,
+                        help="Target sequence length for --criteria length mode")
     parser.add_argument("--skip-isoform", action="store_true",
                         help="Skip representative isoform selection, keep all sequences.")
     
@@ -173,11 +175,14 @@ def main():
     else:
         print(f"\n=== STEP 3: Generating FASTA with representative sequences only ===")
 
+        if args.criteria == "length" and args.target_seq_length is None:
+            parser.error("You must provide --target-seq-length when using --criteria length.")
+
         out_faa = os.path.join(outdir,"representative_isoforms.faa")
         summary_tsv = os.path.join(outdir,"isoform_written_summary.tsv")
 
         Parse_ONE_Isoform.select_rep_isoform(
-            cleaned_gff, protein_fasta, criteria=args.criteria,
+            cleaned_gff, protein_fasta, criteria=args.criteria, target_length=args.target_seq_length,
             out_fasta=out_faa, out_summary=summary_tsv
         )
 

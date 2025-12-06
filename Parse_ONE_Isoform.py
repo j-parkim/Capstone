@@ -194,14 +194,40 @@ def parse_cleaned_gff_hierarchy(gff_file,delimiter="\t",separator=";",assigner="
     return transcript_to_gene, transcript_to_protein
 
 # ----------------------------------------------------------------------------
+# _Helper to select the sequence that has length closest to user entery
+def pick_closest_length(transcripts, seq_dict, target_length):
+    """
+    transcripts: list of transcript IDs
+    seq_dict: {transcript_id: sequence_string}
+    target_length: interger length specified by user
+    
+    Returns transcript ID
+    """
+    best_id = None
+    best_diff = float("inf")
+
+    for tid in transcripts:
+        if tid not in seq_dict:
+            continue
+        length = len(seq_dict[tid])
+        diff = abs(length - target_length)
+
+        if diff < best_diff:
+            best_diff = diff
+            best_id = tid
+
+    return best_id
+
+# ----------------------------------------------------------------------------
 # 5. Select Representative isoform
-def select_rep_isoform(cleaned_gff, protein_fasta, criteria = "longest",
+def select_rep_isoform(cleaned_gff, protein_fasta, criteria = "longest", target_length = None,
                        out_fasta="representative_isoforms.faa", out_summary="isoform_summary.tsv"):
     """
     criteria: 
         - longest (Default)
         - random
         - first
+        - length
     
     Requires:
         - cleaned_gff -> using Parse_whatUwant_gff.py
@@ -232,8 +258,10 @@ def select_rep_isoform(cleaned_gff, protein_fasta, criteria = "longest",
             best_tid = random.choice(tids)
         elif criteria == "first":
             best_tid = tids[0]
+        elif criteria == "length":
+            best_tid = pick_closest_length(tids, protein_seqs, target_length)
         else:
-            raise ValueError("criteria supported is only: 'longest', 'random', or 'first'.")
+            raise ValueError("criteria supported is only: 'longest', 'random', 'first', or 'length'.")
         
         pid = transcript_to_protein.get(best_tid, "NA")
         seq = protein_seqs[best_tid]
