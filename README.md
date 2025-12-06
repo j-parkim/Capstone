@@ -126,14 +126,41 @@ python gff2faa.py \
     --criteria          # options:
                         longest: selects the protein isoform that has the longest sequence length(the greatest number of AA)
                         first: selects the first protein isoform found for the gene in the input gff3 file
-                        random: selects one protein isoform for the gene choosen randomly from the set of available isoforms.
+                        random: selects one protein isoform for the gene chosen randomly from the set of available isoforms.
     --skip-isoform      Skip isoform selection (keep all proteins)
 
     --outdir            Output directory (default=results)
+</pre>
+
+## Additional Feature
+Although not included in the main `gff2faa.py` pipeline, the function `ParseGffinfo.find_diff_attributes(*inputs,output=False)` function was written to compare multiple GFF files and identify:
+- Which feature types are common and unique across files
+- Which attributes differ for each shared feature type
+- Which atttribues are common to all files.
+
+This makes it easier to detect annotation inconsistencies between species or databases.
+
+**Example Output**
+Three files were used.
+<pre>
+Common feature types in all files: ['CDS', 'cDNA_match', 'exon'...]
+!!!Unique features found!!!
+Only Human has ['CAAT_signal', 'CAGE_cluster'...]
+Only Rice has ['inverted_repeat', 'match'...]
+
+Feature type: pseudogene
+!!!Different attributes found!!! 
+# if an attribute were not found in ALL input files, they will be listed here(to be updated if demanded). For example, 'locus_tag' appears in 2/3 files, but 1/3 file did not have for pseudogene feature.
+
+Attributes only in Rice: ['Note', 'locus_tag']
+Attributes only in Date Palm: ['locus_tag', 'partial', 'start_range']
+Number of common attribues for pseudogene: 8
+Common attributes for pseudogene: ['Dbxref', 'ID'...]
 </pre>
 
 ## Next Steps
 - Update for GTF format as well
 - Few more tests on Ensembl/GenCode, GenBank files
 - Make it neat
+- Add user defined query (such as protein ID)
 #### 
