@@ -67,6 +67,7 @@ This is the complete workflos used for my **NYU Capstone Project.**
         - longest (default)
         - first
         - random
+        - length 
                  │
                  ▼
       ┌───────────────────────────────────┐
@@ -100,7 +101,8 @@ python gff2faa.py \
     --reformat \
     --remove-genome mitochondrion,chloroplast \ # User input prompt
     --remove-source cmsearch \ # User input prompt
-    --criteria longest \
+    --criteria length \
+    --target-seq-length 500 \
     --outdir results
 ```
 
@@ -123,10 +125,12 @@ python gff2faa.py \
     --skip-gffread      Do NOT run gffread
     --protein-fasta     Provide protein FASTA manually when skipping gffread
 
-    --criteria          # options:
-                        longest: selects the protein isoform that has the longest sequence length(the greatest number of AA)
-                        first: selects the first protein isoform found for the gene in the input gff3 file
-                        random: selects one protein isoform for the gene chosen randomly from the set of available isoforms.
+    --criteria          # options
+                        - longest: selects the protein isoform that has the longest sequence length(the greatest number of AA)
+                        - first: selects the first protein isoform found for the gene in the input gff3 file
+                        - random: selects one protein isoform for the gene chosen randomly from the set of available isoforms.
+                        - length: selects the protein isoform that has the length closest to user defined in --target-seq-length argument
+    --target-seq-length when using --criteria length, add interger of length you'd like 
     --skip-isoform      Skip isoform selection (keep all proteins)
 
     --outdir            Output directory (default=results)
