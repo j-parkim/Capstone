@@ -7,7 +7,7 @@
 ## **Overview**
 This repository contains a toolkit designed to solve real-world challenges when working with genome annotation files(GFF3) from sources such as RefSeq, GenBank, and Ensembl/Gencode. 
 
-Real annotatino files are often **messy** - contatining inconsistent formats, invalid attributes, multi-source predictions, malformed hierarchies, and irrelevant organellar genome annotations. 
+Real-world annotation files are often **messy** - containing inconsistent formats and attributes, malformed hierarchies, mixed annotation pipelines, and organellar genomes that are not always required for downstream analysis. 
 
 This toolkit is intended to provide a clean, modular, lightweight, reproducible pipeline for:
 1. **Inspecting** GFF/GTF annotation structure.
@@ -64,7 +64,7 @@ This is the complete workflos used for my **NYU Capstone Project.**
       (3) Select Representative Isoform
       * Parse_ONE_Isoform.py
       Options:
-        - longest  (default)
+        - longest (default)
         - first
         - random
                  │
@@ -113,23 +113,26 @@ python gff2faa.py \
 
 **Optional**:
 <pre>
-    --reformat           Standardize attributes (GFF3 format)
-    --remove-genome      Remove genome regions 
+    --reformat          Standardize attributes (GFF3 format)
+    --remove-genome     Remove genome regions 
                         # option: enter in the commandline or user can input in prompt after summary is printed
-    --remove-source      Remove sources 
+    --remove-source     Remove sources 
                         # option: enter in the commandline or user can input in prompt after summary is printed
-    --skip-cleanup       Do NOT clean → use original GFF
+    --skip-cleanup      Do NOT clean → use original GFF
 
-    --skip-gffread       Do NOT run gffread
-    --protein-fasta      Provide protein FASTA manually when skipping gffread
+    --skip-gffread      Do NOT run gffread
+    --protein-fasta     Provide protein FASTA manually when skipping gffread
 
-    --criteria           longest | first | random
-    --skip-isoform       Skip isoform selection (keep all proteins)
+    --criteria          # options:
+                        longest: selects the protein isoform that has the longest sequence length(the greatest number of AA)
+                        first: selects the first protein isoform found for the gene in the input gff3 file
+                        random: selects one protein isoform for the gene choosen randomly from the set of available isoforms.
+    --skip-isoform      Skip isoform selection (keep all proteins)
 
-    --outdir             Output directory (default=results)
+    --outdir            Output directory (default=results)
 </pre>
 
-## Future Directions
+## Next Steps
 - Update for GTF format as well
 - Few more tests on Ensembl/GenCode, GenBank files
 - Make it neat
